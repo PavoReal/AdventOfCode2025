@@ -40,8 +40,6 @@ const Dial = struct {
 
         var wraps: i32 = 0;
 
-        // var wraps: u32 = @abs(@divFloor(target, self.max));
-
         if (target > start) {
             wraps = @divFloor(target, self.max) - @divFloor(start, self.max);
         } else {
@@ -65,7 +63,8 @@ pub fn day_one() void {
 
     var bytes_processed: usize = 0;
     var dial: Dial = .{};
-    var zero_count: u32 = 0;
+    var zero_landings: u32 = 0;
+    var zero_crosses: u32 = 0;
 
     while (bytes_processed < input.len) {
         const endl_index = std.mem.indexOfScalar(u8, input[bytes_processed..], '\n');
@@ -82,15 +81,16 @@ pub fn day_one() void {
             };
 
             const wraps = dial.process_action(action);
-            zero_count += wraps;
+            zero_crosses += wraps;
 
             if (dial.current == 0) {
-                zero_count += 1;
+                zero_landings += 1;
             }
         } else {
             break;
         }
     }
 
-    std.log.info("Zero count {d}", .{zero_count});
+    std.log.info("Part 1: {d}", .{zero_landings});
+    std.log.info("Part 2: {d}", .{zero_landings + zero_crosses});
 }
