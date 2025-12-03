@@ -40,10 +40,10 @@ fn isAddressValidPartTwo(address: []const u8) !bool {
 }
 
 test "Test isAddressValidPartOne" {
-    try std.testing.expect(try isAddressValidPartOne(9));
-    try std.testing.expect(try isAddressValidPartOne(10));
-    try std.testing.expect(!try isAddressValidPartOne(11));
-    try std.testing.expect(!try isAddressValidPartOne(1188511885));
+    try std.testing.expect(try isAddressValidPartOne("9"));
+    try std.testing.expect(try isAddressValidPartOne("10"));
+    try std.testing.expect(!try isAddressValidPartOne("11"));
+    try std.testing.expect(!try isAddressValidPartOne("1188511885"));
 }
 
 const RangeParseError = error{NO_SEP};
