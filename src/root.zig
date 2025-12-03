@@ -102,7 +102,7 @@ pub fn dayOne() void {
 // Day 2                                                 //
 ///////////////////////////////////////////////////////////
 
-fn isAddressValid(addr: u64) !bool {
+fn isAddressValidPartOne(addr: u64) !bool {
     var buffer: [1024]u8 = undefined;
 
     const address = try std.fmt.bufPrint(&buffer, "{d}", .{addr});
@@ -120,12 +120,40 @@ fn isAddressValid(addr: u64) !bool {
     return is_valid;
 }
 
-test "Test isAddressValid" {
+fn isAddressValidPartTwo(addr: u64) !bool {
+    var buffer: [64]u8 = undefined;
+    const address = try std.fmt.bufPrint(&buffer, "{d}", .{addr});
+
+    for (1..(address.len / 2) + 1) |len| {
+        if (address.len % len != 0) continue;
+
+        const pattern = address[0..len];
+        var is_repeating = true;
+        var i = len;
+
+        while (i < address.len) : (i += len) {
+            const chunk = address[i .. i + len];
+
+            if (!std.mem.eql(u8, pattern, chunk)) {
+                is_repeating = false;
+                break;
+            }
+        }
+
+        if (is_repeating) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+test "Test isAddressValidPartOne" {
     std.testing.log_level = .debug;
-    try std.testing.expect(isAddressValid("9"));
-    try std.testing.expect(isAddressValid("10"));
-    try std.testing.expect(!isAddressValid("11"));
-    try std.testing.expect(!isAddressValid("1188511885"));
+    try std.testing.expect(isAddressValidPartOne("9"));
+    try std.testing.expect(isAddressValidPartOne("10"));
+    try std.testing.expect(!isAddressValidPartOne("11"));
+    try std.testing.expect(!isAddressValidPartOne("1188511885"));
 }
 
 const RangeParseError = error{NO_SEP};
@@ -160,7 +188,8 @@ pub fn dayTwo() void {
     const input: []const u8 = @embedFile(input_path);
 
     var bytes_processed: usize = 0;
-    var invalid_sum: u64 = 0;
+    var part_one_sum: u64 = 0;
+    var part_two_sum: u64 = 0;
 
     while (bytes_processed < input.len) {
         const start_index = bytes_processed;
@@ -185,19 +214,28 @@ pub fn dayTwo() void {
         }
 
         for (range.start..range.end + 1) |addr| {
-            const is_valid = isAddressValid(addr) catch |err| {
-                std.log.err("Could not check if address {d} is valid\n{}", .{ addr, err });
+            const is_valid_part_one = isAddressValidPartOne(addr) catch |err| {
+                std.log.err("Could not check if address {d} is valid (part one)\n{}", .{ addr, err });
                 return;
             };
 
-            if (!is_valid) {
-                // std.log.info("Address {} is invalid", .{addr});
-                invalid_sum += addr;
+            const is_valid_part_two = isAddressValidPartTwo(addr) catch |err| {
+                std.log.err("Could not check if address {d} is valid (part two)\n{}", .{ addr, err });
+                return;
+            };
+
+            if (!is_valid_part_one) {
+                part_one_sum += addr;
+            }
+
+            if (!is_valid_part_two) {
+                part_two_sum += addr;
             }
         }
 
         bytes_processed += sep_value + 1;
     }
 
-    std.log.info("Part 1 {}", .{invalid_sum});
+    std.log.info("Part 1 {}", .{part_one_sum});
+    std.log.info("Part 2 {}", .{part_two_sum});
 }
