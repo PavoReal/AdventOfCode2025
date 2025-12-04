@@ -67,7 +67,8 @@ pub fn dayThree() DayThreeResults {
 }
 
 pub fn main() !void {
-    const result = dayThree();
+    @setEvalBranchQuota(1000000);
+    const result = comptime dayThree();
 
     std.log.info("Day 3 part 1: {d}", .{result.a});
     std.log.info("Day 3 part 2: {d}", .{result.b});
