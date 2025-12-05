@@ -63,7 +63,7 @@ pub fn main() void {
     day.grid = &buffer;
 
     const width = comptime std.mem.indexOfScalar(u8, input, '\n');
-    const height = comptime std.mem.countScalar(u8, input, '\n');
+    const height = comptime std.mem.count(u8, input, "\n");
 
     if (width == null) {
         std.log.err("Couldn't parse file stride", .{});
