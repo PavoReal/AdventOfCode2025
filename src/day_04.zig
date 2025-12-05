@@ -52,6 +52,8 @@ const DayFour = struct {
 };
 
 pub fn main() void {
+    @setEvalBranchQuota(1000000);
+
     var day: DayFour = .{};
 
     const input = @embedFile("./inputs/day_four.txt");
@@ -60,7 +62,8 @@ pub fn main() void {
 
     day.grid = &buffer;
 
-    const width = std.mem.indexOfScalar(u8, day.grid, '\n');
+    const width = comptime std.mem.indexOfScalar(u8, input, '\n');
+    const height = comptime std.mem.countScalar(u8, input, '\n');
 
     if (width == null) {
         std.log.err("Couldn't parse file stride", .{});
@@ -69,9 +72,9 @@ pub fn main() void {
 
     day.grid_width = width.?;
     day.grid_stride = day.grid_width + 1;
-    day.grid_height = std.mem.countScalar(u8, day.grid, '\n');
+    day.grid_height = height;
 
-    var points_to_remove: [input.len]Point = undefined;
+    var points_to_remove: [width.? * height]Point = undefined;
     @memset(&points_to_remove, .{});
 
     var first_loop = true;
@@ -93,6 +96,7 @@ pub fn main() void {
                     if (first_loop) {
                         day.part_one += 1;
                     }
+
                     day.part_two += 1;
 
                     points_to_remove[index_top] = p;
