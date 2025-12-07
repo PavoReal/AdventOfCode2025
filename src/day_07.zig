@@ -8,7 +8,7 @@ const DayResults = struct {
 fn runDay() DayResults {
     var result: DayResults = .{};
 
-    const input = @embedFile("./inputs/day_seven_sample.txt");
+    const input = @embedFile("./inputs/day_seven.txt");
     var lines = comptime std.mem.tokenizeScalar(u8, input, '\n');
     const grid_stride = comptime std.mem.findScalar(u8, input, '\n').? + 1;
 
@@ -43,14 +43,14 @@ fn runDay() DayResults {
                 const right_index = offset + 1;
 
                 if (grid[left_index] != '|') {
-                    result.part_one += 1;
                     grid[left_index] = '|';
                 }
 
                 if (grid[right_index] != '|') {
-                    result.part_one += 1;
                     grid[right_index] = '|';
                 }
+
+                result.part_one += 1;
             }
 
             search_index = offset + 1;
@@ -70,7 +70,6 @@ fn runDay() DayResults {
             search_index = offset + 1;
         }
 
-        std.log.debug("{s}", .{grid[start_index..end_index]});
         start_index = end_index + 1;
     }
 
