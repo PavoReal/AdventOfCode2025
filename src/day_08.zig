@@ -107,7 +107,10 @@ fn runDay() !DayResults {
         size[i] = 1;
     }
 
-    for (connections.items[0..number_to_connect]) |conn| {
+    // Part 2
+    var num_comp = boxes.items.len;
+
+    for (connections.items, 0..) |conn, idx| {
         const rootA = JunctionBox.find(parent, conn.a);
         const rootB = JunctionBox.find(parent, conn.b);
 
@@ -119,24 +122,33 @@ fn runDay() !DayResults {
                 parent[rootB] = rootA;
                 size[rootA] += size[rootB];
             }
+
+            num_comp -= 1;
+
+            if (num_comp == 1) {
+                const boxA = boxes.items[conn.a];
+                const boxB = boxes.items[conn.b];
+                results.part_two = boxA.x * boxB.x;
+
+                if (idx >= number_to_connect) break;
+            }
         }
-    }
 
-    var final_sizes = try std.ArrayList(u64).initCapacity(alloc, boxes.items.len);
-    defer final_sizes.deinit(alloc);
+        if (idx == number_to_connect - 1) {
+            var final_sizes = try std.ArrayList(u64).initCapacity(alloc, boxes.items.len);
+            for (0..boxes.items.len) |i| {
+                if (parent[i] == i) {
+                    try final_sizes.append(alloc, size[i]);
+                }
+            }
+            std.sort.block(u64, final_sizes.items, {}, std.sort.desc(u64));
 
-    for (0..boxes.items.len) |i| {
-        if (parent[i] == i) {
-            try final_sizes.append(alloc, size[i]);
+            var p1: u64 = 1;
+            for (0..3) |k| {
+                if (k < final_sizes.items.len) p1 *= final_sizes.items[k];
+            }
+            results.part_one = p1;
         }
-    }
-
-    std.sort.block(u64, final_sizes.items, {}, std.sort.desc(u64));
-
-    results.part_one = 1;
-
-    for (0..3) |i| {
-        results.part_one *= final_sizes.items[i];
     }
 
     return results;
