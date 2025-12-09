@@ -33,6 +33,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "day_06", .source = "src/day_06.zig" },
         .{ .name = "day_07", .source = "src/day_07.zig" },
         .{ .name = "day_08", .source = "src/day_08.zig" },
+        .{ .name = "day_09", .source = "src/day_09.zig" },
     };
 
     const run_all_step = b.step("run", "Run all day executables");
