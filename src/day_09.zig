@@ -30,6 +30,8 @@ const Grid = struct {
 
     grid: []bool = undefined,
 
+    prefix_sum: []u64 = undefined,
+
     pub fn init(alloc: std.mem.Allocator, points: []Point) !Grid {
         var result: Grid = .{};
 
@@ -50,7 +52,8 @@ const Grid = struct {
     }
 
     pub fn deinit(self: *Grid, alloc: std.mem.Allocator) void {
-        defer alloc.free(self.grid);
+        alloc.free(self.grid);
+        if (self.prefix_sum.len > 0) alloc.free(self.prefix_sum);
     }
 
     pub fn set(self: *Grid, p: Point, val: bool) void {
@@ -132,8 +135,6 @@ const Grid = struct {
             try self.checkAndPush(alloc, w - 1, y, &stack, &outside);
         }
 
-        std.log.debug("Outside? What's that?", .{});
-
         while (stack.pop()) |p| {
             const x = p.x;
             const y = p.y;
@@ -151,7 +152,60 @@ const Grid = struct {
             }
         }
     }
+    pub fn buildPrefixSum(self: *Grid, alloc: std.mem.Allocator) !void {
+        const w = self.grid_width;
+        const h = self.grid_height;
+
+        self.prefix_sum = try alloc.alloc(u64, (w + 1) * (h + 1));
+        @memset(self.prefix_sum, 0);
+
+        for (0..h) |y| {
+            for (0..w) |x| {
+                const val: u64 = if (self.grid[y * w + x]) 1 else 0;
+
+                const left = self.prefix_sum[(y + 1) * (w + 1) + x];
+                const top = self.prefix_sum[y * (w + 1) + (x + 1)];
+                const top_left = self.prefix_sum[y * (w + 1) + x];
+
+                self.prefix_sum[(y + 1) * (w + 1) + (x + 1)] = val + left + top - top_left;
+            }
+        }
+    }
+
+    pub fn isRectValid(self: *Grid, min_p: Point, max_p: Point) bool {
+        const x1 = min_p.x - self.min_x;
+        const y1 = min_p.y - self.min_y;
+        const x2 = max_p.x - self.min_x;
+        const y2 = max_p.y - self.min_y;
+
+        const p_w = self.grid_width + 1;
+
+        const D = self.prefix_sum[(y2 + 1) * p_w + (x2 + 1)];
+        const B = self.prefix_sum[(y1) * p_w + (x2 + 1)];
+        const C = self.prefix_sum[(y2 + 1) * p_w + (x1)];
+        const A = self.prefix_sum[(y1) * p_w + (x1)];
+
+        const sum = (D - B) - (C - A);
+
+        const area = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+        return sum == area;
+    }
 };
+
+fn isRectValid(valid: *[]const bool, grid: *const Grid, min_x: u64, max_x: u64, min_y: u64, max_y: u64) void {
+    valid = true;
+    for (min_x..max_x + 1) |x| {
+        for (min_y..max_y + 1) |y| {
+            if (!grid.get(.{ .x = x, .y = y })) {
+                valid = false;
+                break;
+            }
+        }
+
+        if (!valid) break;
+    }
+}
 
 fn runDay(alloc: std.mem.Allocator) !DayResults {
     @setEvalBranchQuota(1000000);
@@ -195,17 +249,17 @@ fn runDay(alloc: std.mem.Allocator) !DayResults {
 
         grid.setLine(a, b, true);
     }
+    grid.setLine(points.items[0], points.items[points.items.len - 1], true);
 
-    std.log.info("Borders created", .{});
+    std.log.debug("Borders created", .{});
 
-    const start = points.items[0];
-    const end = points.items[points.items.len - 1];
-
-    grid.setLine(start, end, true);
-
-    std.log.info("Starting flood", .{});
+    std.log.debug("Starting flood", .{});
     try grid.floodFill(alloc);
-    std.log.info("Flood done", .{});
+
+    std.log.debug("Building prefix sum", .{});
+    try grid.buildPrefixSum(alloc);
+
+    std.log.debug("Searching for max rect", .{});
 
     var pt2_area: u64 = 0;
     for (points.items, 0..) |a, ai| {
@@ -217,19 +271,7 @@ fn runDay(alloc: std.mem.Allocator) !DayResults {
             const min_y = @min(a.y, b.y);
             const max_y = @max(a.y, b.y);
 
-            var valid = true;
-            for (min_x..max_x + 1) |x| {
-                for (min_y..max_y + 1) |y| {
-                    if (!grid.get(.{ .x = x, .y = y })) {
-                        valid = false;
-                        break;
-                    }
-                }
-
-                if (!valid) break;
-            }
-
-            if (valid) {
+            if (grid.isRectValid(.{ .x = min_x, .y = min_y }, .{ .x = max_x, .y = max_y })) {
                 const dx = max_x - min_x + 1;
                 const dy = max_y - min_y + 1;
                 pt2_area = @max(pt2_area, dx * dy);
