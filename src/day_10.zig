@@ -5,10 +5,12 @@ const Machine = struct {
     lights_target: std.ArrayList(bool) = undefined,
     lights: std.ArrayList(bool) = undefined,
     buttons: std.ArrayList([]u8) = undefined,
-    joltage: std.ArrayList(u8) = undefined,
+    joltage: std.ArrayList(u16) = undefined,
 
     pub fn init(alloc: std.mem.Allocator, line: []const u8) !Machine {
         var result: Machine = .{};
+        errdefer result.deinit(alloc);
+
         var iter = std.mem.tokenizeSequence(u8, line, " ");
 
         // Parse lights
@@ -53,11 +55,11 @@ const Machine = struct {
 
         // Parse joltage
         const trimmed = std.mem.trim(u8, std.mem.trim(u8, btn_str, "\r\n"), "{}");
-        result.joltage = try std.ArrayList(u8).initCapacity(alloc, trimmed.len);
+        result.joltage = try std.ArrayList(u16).initCapacity(alloc, trimmed.len);
 
         var digit_iter = std.mem.tokenizeScalar(u8, trimmed, ',');
         while (digit_iter.next()) |str| {
-            const val = try std.fmt.parseInt(u8, str, 10);
+            const val = try std.fmt.parseInt(u16, str, 10);
             try result.joltage.append(alloc, val);
         }
 
@@ -65,38 +67,57 @@ const Machine = struct {
     }
 
     pub fn deinit(self: *Machine, alloc: std.mem.Allocator) void {
-        self.lights.deinit(alloc);
-        self.lights_target.deinit(alloc);
+        if (self.lights.capacity > 0) self.lights.deinit(alloc);
+        if (self.lights_target.capacity > 0) self.lights_target.deinit(alloc);
 
         for (0..self.buttons.items.len) |i| {
             alloc.free(self.buttons.items[i]);
         }
 
-        self.buttons.deinit(alloc);
-        self.joltage.deinit(alloc);
+        if (self.buttons.capacity > 0) self.buttons.deinit(alloc);
+        if (self.joltage.capacity > 0) self.joltage.deinit(alloc);
+    }
+
+    pub fn calcMinBtnSeqOwned(self: *Machine, alloc: std.mem.Allocator) ![]u32 {
+        _ = self;
+        var result_seq = try std.ArrayList(u32).initCapacity(alloc, 10);
+
+        return try result_seq.toOwnedSlice(alloc);
     }
 };
 
 fn runDay(alloc: std.mem.Allocator, input: []const u8) !DayResults {
-    var machines = try std.ArrayList(Machine).initCapacity(alloc, std.mem.countScalar(u8, input, '\n'));
+    var result: DayResults = .{};
+    const machine_count = std.mem.countScalar(u8, input, '\n');
+
+    var machines = try std.ArrayList(Machine).initCapacity(alloc, machine_count);
     defer machines.deinit(alloc);
 
     defer for (0..machines.items.len) |i| {
         machines.items[i].deinit(alloc);
     };
 
+    // Parse all machines
     var line_iter = std.mem.tokenizeScalar(u8, input, '\n');
     while (line_iter.next()) |line| {
         try machines.append(alloc, try Machine.init(alloc, line));
     }
 
-    return .{};
+    for (0..machines.items.len) |i| {
+        const seq = try machines.items[i].calcMinBtnSeqOwned(alloc);
+        defer alloc.free(seq);
+
+        result.part_one += seq.len;
+    }
+
+    return result;
 }
 
 pub fn main() !void {
-    const input = @embedFile("inputs/day_ten_sample.txt");
+    const input = @embedFile("inputs/day_ten.txt");
 
     var allocator = std.heap.DebugAllocator(.{ .verbose_log = false }){};
+    //var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer _ = allocator.deinit();
 
     const alloc = allocator.allocator();
