@@ -27,6 +27,8 @@ const Machine = struct {
             } else {
                 try result.lights_target.append(alloc, false);
             }
+
+            try result.lights.append(alloc, false);
         }
 
         // Parse buttons
