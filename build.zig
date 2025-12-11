@@ -8,7 +8,7 @@ const std = @import("std");
 // know when a step doesn't need to be re-run).
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
 
     const days = [_]struct {
         name: []const u8,
@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "day_07", .source = "src/day_07.zig" },
         .{ .name = "day_08", .source = "src/day_08.zig" },
         .{ .name = "day_09", .source = "src/day_09.zig" },
+        .{ .name = "day_10", .source = "src/day_10.zig" },
     };
 
     const run_all_step = b.step("run", "Run all day executables");
