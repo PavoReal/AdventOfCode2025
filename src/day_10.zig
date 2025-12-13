@@ -286,7 +286,7 @@ const Machine = struct {
         var pivot_count: usize = 0;
         var pivot_row: usize = 0;
 
-        // Forward elimination to row echelon form.
+        // Forward elimination to row echelon form
         for (0..n_btns) |col| {
             var r = pivot_row;
             while (r < n_lights and aug.get(r, col) == 0) : (r += 1) {}
