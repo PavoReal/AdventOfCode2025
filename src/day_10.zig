@@ -1,5 +1,8 @@
 const std = @import("std");
 const DayResults = struct { part_one: u64 = 0, part_two: u64 = 0 };
+const z3 = @cImport({
+    @cInclude("z3.h");
+});
 
 fn BitMatrixGF2() type {
     return struct {
@@ -148,7 +151,7 @@ fn MatrixMxN(comptime T: type) type {
         }
 
         pub fn mulVecOwned(self: Self, alloc: std.mem.Allocator, v: []T) ![](T) {
-            if (v.items.len != self.cols) return error.DimensionMismatch;
+            if (v.len != self.cols) return error.DimensionMismatch;
 
             var out = try alloc.alloc(T, self.rows);
 
@@ -175,6 +178,18 @@ fn MatrixMxN(comptime T: type) type {
                 out[r] = acc;
             }
         }
+    };
+}
+
+fn z3MkAdd(ctx: z3.Z3_context, zero: z3.Z3_ast, terms: []const z3.Z3_ast) z3.Z3_ast {
+    return switch (terms.len) {
+        0 => zero,
+        1 => terms[0],
+        else => z3.Z3_mk_add(
+            ctx,
+            @intCast(terms.len),
+            @ptrCast(terms.ptr),
+        ),
     };
 }
 
@@ -440,6 +455,78 @@ const Machine = struct {
 
         return try result_seq.toOwnedSlice(alloc);
     }
+
+    pub fn calcMinJoltagePresses(self: *Machine, alloc: std.mem.Allocator) !u64 {
+        const n = self.joltage.len;
+        const m = self.a.len;
+        if (n == 0) return 0;
+
+        const cfg = z3.Z3_mk_config();
+        defer z3.Z3_del_config(cfg);
+
+        const ctx = z3.Z3_mk_context(cfg);
+        defer z3.Z3_del_context(ctx);
+
+        const int_sort = z3.Z3_mk_int_sort(ctx);
+        const zero = z3.Z3_mk_int64(ctx, 0, int_sort);
+
+        const opt = z3.Z3_mk_optimize(ctx);
+        z3.Z3_optimize_inc_ref(ctx, opt);
+        defer z3.Z3_optimize_dec_ref(ctx, opt);
+
+        var xs = try alloc.alloc(z3.Z3_ast, m);
+        defer alloc.free(xs);
+
+        for (0..m) |i| {
+            const sym = z3.Z3_mk_int_symbol(ctx, @intCast(i));
+            xs[i] = z3.Z3_mk_const(ctx, sym, int_sort);
+
+            const ge0 = z3.Z3_mk_ge(ctx, xs[i], zero);
+            z3.Z3_optimize_assert(ctx, opt, ge0);
+        }
+
+        var sum_buf = try alloc.alloc(z3.Z3_ast, m);
+        defer alloc.free(sum_buf);
+
+        for (0..n) |r| {
+            const r_u8: u8 = @intCast(r);
+
+            var k: usize = 0;
+            for (self.a, 0..) |btn, bi| {
+                for (btn) |cu8| {
+                    if (cu8 == r_u8) {
+                        sum_buf[k] = xs[bi];
+                        k += 1;
+                        break;
+                    }
+                }
+            }
+
+            const sum_r = z3MkAdd(ctx, zero, sum_buf[0..k]);
+            const req = z3.Z3_mk_int64(ctx, @intCast(self.joltage[r]), int_sort);
+            const eq = z3.Z3_mk_eq(ctx, sum_r, req);
+            z3.Z3_optimize_assert(ctx, opt, eq);
+        }
+
+        const total = z3MkAdd(ctx, zero, xs);
+        const obj_idx = z3.Z3_optimize_minimize(ctx, opt, total);
+
+        const st = z3.Z3_optimize_check(ctx, opt, 0, null);
+        if (st != z3.Z3_L_TRUE) {
+            if (st == z3.Z3_L_FALSE) return error.NoSolution;
+
+            const why = z3.Z3_optimize_get_reason_unknown(ctx, opt);
+            std.log.err("Z3 optimize returned unknown: {s}", .{std.mem.span(why)});
+            return error.Z3Unknown;
+        }
+
+        const lb = z3.Z3_optimize_get_lower(ctx, opt, obj_idx);
+
+        var out: u64 = 0;
+        _ = z3.Z3_get_numeral_uint64(ctx, lb, &out);
+
+        return out;
+    }
 };
 
 fn runDay(alloc: std.mem.Allocator, input: []const u8) !DayResults {
@@ -463,7 +550,10 @@ fn runDay(alloc: std.mem.Allocator, input: []const u8) !DayResults {
         const seq = try machines.items[i].calcMinBtnSeqOwned(alloc);
         defer alloc.free(seq);
 
+        const pt2 = try machines.items[i].calcMinJoltagePresses(alloc);
+
         result.part_one += seq.len;
+        result.part_two += pt2;
     }
 
     return result;

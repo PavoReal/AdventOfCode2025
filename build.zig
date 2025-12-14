@@ -13,17 +13,18 @@ pub fn build(b: *std.Build) void {
     const days = [_]struct {
         name: []const u8,
         source: []const u8,
+        deps: []const u8,
     }{
-        .{ .name = "day_01", .source = "src/day_01.zig" },
-        .{ .name = "day_02", .source = "src/day_02.zig" },
-        .{ .name = "day_03", .source = "src/day_03.zig" },
-        .{ .name = "day_04", .source = "src/day_04.zig" },
-        .{ .name = "day_05", .source = "src/day_05.zig" },
-        .{ .name = "day_06", .source = "src/day_06.zig" },
-        .{ .name = "day_07", .source = "src/day_07.zig" },
-        .{ .name = "day_08", .source = "src/day_08.zig" },
-        .{ .name = "day_09", .source = "src/day_09.zig" },
-        .{ .name = "day_10", .source = "src/day_10.zig" },
+        .{ .name = "day_01", .source = "src/day_01.zig", .deps = "" },
+        .{ .name = "day_02", .source = "src/day_02.zig", .deps = "" },
+        .{ .name = "day_03", .source = "src/day_03.zig", .deps = "" },
+        .{ .name = "day_04", .source = "src/day_04.zig", .deps = "" },
+        .{ .name = "day_05", .source = "src/day_05.zig", .deps = "" },
+        .{ .name = "day_06", .source = "src/day_06.zig", .deps = "" },
+        .{ .name = "day_07", .source = "src/day_07.zig", .deps = "" },
+        .{ .name = "day_08", .source = "src/day_08.zig", .deps = "" },
+        .{ .name = "day_09", .source = "src/day_09.zig", .deps = "" },
+        .{ .name = "day_10", .source = "src/day_10.zig", .deps = "z3" },
     };
 
     const run_all_step = b.step("run", "Run all day executables");
@@ -38,6 +39,10 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             }),
         });
+
+        if (day.deps.len > 0) {
+            exe.root_module.linkSystemLibrary(day.deps, .{});
+        }
 
         b.installArtifact(exe);
 
