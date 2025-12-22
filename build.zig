@@ -10,6 +10,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
 
+    const DEFAULT_STACK_SIZE: u64 = 2 * 1024 * 1024;
+    const stack_size = b.option(u64, "stack-size", "Stack size, used by all days bin.") orelse DEFAULT_STACK_SIZE;
+
     const days = [_]struct {
         name: []const u8,
         source: []const u8,
@@ -40,6 +43,13 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             }),
         });
+
+        exe.stack_size = stack_size;
+
+        const options = b.addOptions();
+        options.addOption(u64, "stack_size", stack_size);
+
+        exe.root_module.addOptions("config", options);
 
         if (day.deps.len > 0) {
             exe.root_module.linkSystemLibrary(day.deps, .{});
