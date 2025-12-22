@@ -36,97 +36,81 @@ const Server = struct {
     pub fn deinit(self: *Server, alloc: std.mem.Allocator) void {
         if (self.children.len > 0) alloc.free(self.children);
     }
-
-    pub fn doesContainChild(self: *Server, name: []const u8) bool {
-        for (self.children) |str| {
-            if (std.mem.eql(u8, name, str)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 };
 
-const ChildIter = struct {
-    target: []const u8,
-    servers: []Server,
-    index: usize = 0,
+fn parseInput(alloc: std.mem.Allocator, input: []const u8) !std.StringHashMap([][]const u8) {
+    var servers = std.StringHashMap([][]const u8).init(alloc);
 
-    pub fn init(a: []Server, target: []const u8) ChildIter {
-        return .{ .target = target, .servers = a };
-    }
-
-    pub fn next(self: *ChildIter) ?[]const u8 {
-        if (self.index >= self.servers.len) return null;
-
-        for (self.index + 1..self.servers.len) |i| {
-            if (self.servers[i].doesContainChild(self.target)) {
-                self.index = i;
-                return self.servers[self.index].name;
-            }
-        }
-
-        return null;
-    }
-
-    pub fn reset(self: ChildIter) void {
-        self.index = 0;
-    }
-};
-
-fn getServerByName(list: []Server, name: []const u8) ?*Server {
-    for (list) |*s| {
-        if (std.mem.eql(u8, s.name, name)) {
-            return s;
-        }
-    }
-
-    return null;
-}
-
-fn parseInput(alloc: std.mem.Allocator, input: []const u8) ![]Server {
-    const line_count = std.mem.countScalar(u8, input, '\n');
-
-    var servers = try std.ArrayList(Server).initCapacity(alloc, line_count);
     var line_iter = std.mem.tokenizeScalar(u8, input, '\n');
-
     while (line_iter.next()) |line| {
-        try servers.append(alloc, try .init(alloc, line));
+        const server = try Server.init(alloc, line);
+        try servers.put(server.name, server.children);
     }
 
-    return servers.toOwnedSlice(alloc);
+    return servers;
 }
+const StackFrame = struct {
+    node_name: []const u8,
+    child_index: usize = 0,
+    paths_sum: u64 = 0,
+};
 
 fn runDay(alloc: std.mem.Allocator) !DayResults {
-    const input = @embedFile("./inputs/day_eleven_sample.txt");
-    const servers = try parseInput(alloc, input);
+    const input = @embedFile("./inputs/day_eleven.txt");
 
-    defer for (0..servers.len) |i| {
-        servers[i].deinit(alloc);
-    };
+    const graph = try parseInput(alloc, input);
+    var stack = try std.ArrayList(StackFrame).initCapacity(alloc, 128);
+    var cache = std.StringHashMap(u64).init(alloc);
 
-    var iter = ChildIter.init(servers, "out");
+    try stack.append(alloc, .{ .child_index = 0, .paths_sum = 0, .node_name = "you" });
 
-    std.log.info("Ways out:", .{});
-    while (iter.next()) |c| {
-        std.log.info("{s}", .{c});
+    while (stack.items.len > 0) {
+        var current_frame = &stack.items[stack.items.len - 1];
 
-        const s = getServerByName(servers, c).?;
-        std.log.info("self: {s}", .{s.name});
+        if (current_frame.child_index == 0) {
+            if (cache.get(current_frame.node_name)) |val| {
+                _ = stack.pop();
+                if (stack.items.len > 0) stack.items[stack.items.len - 1].paths_sum += val;
+                continue;
+            }
+
+            if (std.mem.eql(u8, current_frame.node_name, "out")) {
+                _ = stack.pop();
+                if (stack.items.len > 0) stack.items[stack.items.len - 1].paths_sum += 1;
+                continue;
+            }
+        }
+
+        const children = graph.get(current_frame.node_name);
+
+        if (children != null and current_frame.child_index < children.?.len) {
+            const child_name = children.?[current_frame.child_index];
+
+            current_frame.child_index += 1;
+
+            try stack.append(alloc, .{ .node_name = child_name, .child_index = 0, .paths_sum = 0 });
+            continue;
+        }
+
+        try cache.put(current_frame.node_name, current_frame.paths_sum);
+
+        const final_result = current_frame.paths_sum;
+
+        _ = stack.pop();
+
+        if (stack.items.len > 0) stack.items[stack.items.len - 1].paths_sum += final_result;
     }
 
-    return .{ .part_one = 0, .part_two = 0 };
+    const pt1 = cache.get("you") orelse 0;
+
+    return .{ .part_one = @intCast(pt1), .part_two = 0 };
 }
 
 pub fn main() !void {
     const TOP_BUF_SIZE = (1 * 1024 * 1024);
-    comptime std.debug.assert(config.stack_size >= 1.1 * TOP_BUF_SIZE);
+    comptime std.debug.assert(config.stack_size >= (TOP_BUF_SIZE + (1024 * 1024)));
 
     var top_buf: [TOP_BUF_SIZE]u8 = undefined;
-
-    //var allocator = std.heap.DebugAllocator(.{ .verbose_log = false, }).init;
-    //defer std.debug.assert(allocator.deinit() == .ok);
     var allocator = std.heap.FixedBufferAllocator.init(&top_buf);
 
     const alloc = allocator.allocator();
