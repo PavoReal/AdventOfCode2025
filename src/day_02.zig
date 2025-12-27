@@ -67,7 +67,7 @@ const Range = struct {
         const end = str[sep_index_value + 1 ..];
 
         result.start = try std.fmt.parseInt(u64, start, 10);
-        result.end = try std.fmt.parseInt(u64, std.mem.trimRight(u8, end, "\n\r"), 10);
+        result.end = try std.fmt.parseInt(u64, std.mem.trimEnd(u8, end, "\n\r"), 10);
 
         return result;
     }
