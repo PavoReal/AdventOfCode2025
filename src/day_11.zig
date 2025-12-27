@@ -1,17 +1,11 @@
 // Advent of Code 2025 - Day 11
 // ------------------------------------------
-// TODO
-//     - [x] Parse input directly into flat list
-//     - [ ] Build tree structure
-//         - [ ] Find you, build graph of paths
-//     - [ ] Count number of paths between you and out nodes, this is part 1
-//     - [ ] TBD
 //
 
 const std = @import("std");
 const config = @import("config");
 
-const DayResults = struct { part_one: u32, part_two: u32 };
+const DayResults = struct { part_one: u64, part_two: u64 };
 
 const Server = struct {
     name: []const u8 = undefined,
@@ -32,10 +26,6 @@ const Server = struct {
 
         return .{ .name = name, .children = try children_slices.toOwnedSlice(alloc) };
     }
-
-    pub fn deinit(self: *Server, alloc: std.mem.Allocator) void {
-        if (self.children.len > 0) alloc.free(self.children);
-    }
 };
 
 fn parseInput(alloc: std.mem.Allocator, input: []const u8) !std.StringHashMap([][]const u8) {
@@ -49,20 +39,28 @@ fn parseInput(alloc: std.mem.Allocator, input: []const u8) !std.StringHashMap([]
 
     return servers;
 }
+
 const StackFrame = struct {
     node_name: []const u8,
     child_index: usize = 0,
     paths_sum: u64 = 0,
 };
 
-fn runDay(alloc: std.mem.Allocator) !DayResults {
-    const input = @embedFile("./inputs/day_eleven.txt");
+fn countPaths(
+    alloc: std.mem.Allocator,
+    graph: std.StringHashMap([][]const u8),
+    start_node: []const u8,
+    target_node: []const u8,
+) !u64 {
+    if (std.mem.eql(u8, start_node, target_node)) return 1;
 
-    const graph = try parseInput(alloc, input);
     var stack = try std.ArrayList(StackFrame).initCapacity(alloc, 128);
-    var cache = std.StringHashMap(u64).init(alloc);
+    defer stack.deinit(alloc);
 
-    try stack.append(alloc, .{ .child_index = 0, .paths_sum = 0, .node_name = "you" });
+    var cache = std.StringHashMap(u64).init(alloc);
+    defer cache.deinit();
+
+    try stack.append(alloc, .{ .node_name = start_node, .child_index = 0, .paths_sum = 0 });
 
     while (stack.items.len > 0) {
         var current_frame = &stack.items[stack.items.len - 1];
@@ -74,36 +72,57 @@ fn runDay(alloc: std.mem.Allocator) !DayResults {
                 continue;
             }
 
-            if (std.mem.eql(u8, current_frame.node_name, "out")) {
+            if (std.mem.eql(u8, current_frame.node_name, target_node)) {
                 _ = stack.pop();
                 if (stack.items.len > 0) stack.items[stack.items.len - 1].paths_sum += 1;
                 continue;
             }
         }
 
-        const children = graph.get(current_frame.node_name);
+        const children_opt = graph.get(current_frame.node_name);
 
-        if (children != null and current_frame.child_index < children.?.len) {
-            const child_name = children.?[current_frame.child_index];
+        if (children_opt) |children| {
+            if (current_frame.child_index < children.len) {
+                const child_name = children[current_frame.child_index];
 
-            current_frame.child_index += 1;
+                current_frame.child_index += 1;
 
-            try stack.append(alloc, .{ .node_name = child_name, .child_index = 0, .paths_sum = 0 });
-            continue;
+                try stack.append(alloc, .{ .node_name = child_name, .child_index = 0, .paths_sum = 0 });
+                continue;
+            }
         }
 
         try cache.put(current_frame.node_name, current_frame.paths_sum);
 
         const final_result = current_frame.paths_sum;
-
         _ = stack.pop();
 
-        if (stack.items.len > 0) stack.items[stack.items.len - 1].paths_sum += final_result;
+        if (stack.items.len > 0) {
+            stack.items[stack.items.len - 1].paths_sum += final_result;
+        }
     }
 
-    const pt1 = cache.get("you") orelse 0;
+    return cache.get(start_node) orelse 0;
+}
 
-    return .{ .part_one = @intCast(pt1), .part_two = 0 };
+fn runDay(alloc: std.mem.Allocator) !DayResults {
+    const input = @embedFile("./inputs/day_eleven.txt");
+
+    const graph = try parseInput(alloc, input);
+    const pt1 = try countPaths(alloc, graph, "you", "out");
+
+    // pt2 = (you -> dac -> fft -> out) + (you -> fft -> dac -> out)
+    const you_to_dac = try countPaths(alloc, graph, "svr", "dac");
+    const dac_to_fft = try countPaths(alloc, graph, "dac", "fft");
+    const fft_to_out = try countPaths(alloc, graph, "fft", "out");
+
+    const you_to_fft = try countPaths(alloc, graph, "svr", "fft");
+    const fft_to_dac = try countPaths(alloc, graph, "fft", "dac");
+    const dac_to_out = try countPaths(alloc, graph, "dac", "out");
+
+    const pt2 = (you_to_dac * dac_to_fft * fft_to_out) + (you_to_fft * fft_to_dac * dac_to_out);
+
+    return .{ .part_one = @intCast(pt1), .part_two = @intCast(pt2) };
 }
 
 pub fn main() !void {
